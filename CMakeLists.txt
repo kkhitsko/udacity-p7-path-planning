@@ -10,7 +10,9 @@ set(CMAKE_CXX_FLAGS, "${CXX_FLAGS}")
 set(sources 
 	src/main.cpp
 	src/Vehicle.cpp
-	src/Vehicle.h)
+	src/Vehicle.h
+	src/CostFunction.cpp
+	src/CostFunction.h)
 
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 

@@ -10,6 +10,7 @@
 #include "json.hpp"
 #include "spline.h"
 #include "Vehicle.h"
+#include "CostFunction.h"
 
 using namespace std;
 
@@ -236,9 +237,12 @@ int main() {
   double ref_vel = 0;
 
 
+  Vehicle vehicle( 0, lane, ref_vel );
+
+  CostFunction cf;
 
 
-  h.onMessage([&map_waypoints_x,&lane,&ref_vel, &map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&lane,&ref_vel, &vehicle, &cf, &map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -282,67 +286,43 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	//printf("x: %f; y: %f; s: %f; d: %f; yaw: %f\n", car_x, car_y, car_s, car_d, car_yaw );
-
           	size_t prev_size = previous_path_x.size();
 
           	if ( prev_size > 0 ) {
           	    car_s = end_path_s;
           	}
 
-          	bool to_close = false;
+          	vehicle.Update( car_s, prev_size );
 
-          	for ( int i=0; i < sensor_fusion.size(); ++i ) {
-          	    /* check that car is my lane */
-          	    float d = sensor_fusion[i][6];
-          	    double vx = sensor_fusion[i][3];
-          	    double vy = sensor_fusion[i][4];
-          	    double check_speed = sqrt( vx*vx+vy*vy );
-          	    double check_car_s = sensor_fusion[i][5];
+          	auto best_action = cf.getMinCostAction( vehicle, sensor_fusion );
 
-          	    check_car_s += ((double)prev_size*0.02*check_speed);
-          	    auto distToCar = check_car_s - car_s;
+          	switch( best_action ) {
+          	     case Vehicle::Action::DO_NOTHING:
+          	        //
+          	         break;
+          	     case Vehicle::Action::SPEED_UP:
+          	         //
+          	         vehicle.speedUp();
+          	         break;
 
-          	    if ( ( d < 2 + 4*lane +2 ) && ( d > 2 + 4*lane - 2 ) ) {
-          	        if ( ( distToCar > 0 ) && ( distToCar < 30 ) ) {
-          	            printf("Detect car in front of us. Distance to car: %f\n", distToCar );
-          	            //ref_vel = 29.5;
-          	            to_close = true;
-          	        }
-          	    }
+          	     case Vehicle::Action::SLOW_DOWN:
+          	          //
+          	          vehicle.slowDown();
+          	          break;
+          	     case Vehicle::Action::GO_LEFT:
+          	          //
+          	          vehicle.turnLeft();
+          	          break;
+          	     case Vehicle::Action::GO_RIGHT:
+          	                //
+          	          vehicle.turnRight();
+          	          break;
+          	     default:
+          	          break;
           	}
 
-          	if ( to_close  ) {
-          	    //ref_vel -= 0.224;
-          	    //printf("Decrease speed. New speed: %f\n", ref_vel);
-          	    bool is_save_left_change = false;
-          	    bool is_save_right_change = false;
-          	    if ( lane > 0 ) {
-          	        printf("Check is is safe to change lane to left\n");
-          	        /* Maybe we need to change lane */
-          	        is_save_left_change = checkLaneChangeSafe( car_s, prev_size, lane - 1, sensor_fusion );
-          	    }
-
-          	    if (!is_save_left_change ) {
-          	        printf("Left lane change is unsafe. Try to change lane to the right\n");
-          	        if ( lane < 2 ) {
-          	            is_save_right_change = checkLaneChangeSafe( car_s, prev_size, lane + 1, sensor_fusion );
-          	        }
-          	    }
-
-          	    if ( is_save_left_change )
-          	        lane -= 1;
-          	    else if ( is_save_right_change )
-          	        lane += 1;
-          	    else {
-          	      ref_vel -= 1.5*0.224;
-          	      printf("Decrease speed. New speed: %f\n", ref_vel);
-          	    }
-          	}
-          	else if ( ref_vel < 49.5 ) {
-          	    ref_vel += 1.5*0.224;
-          	    //printf("Increase speed. New speed: %f\n", ref_vel);
-          	}
+          	ref_vel = vehicle.getSpeed();
+          	lane = vehicle.getLane();
 
           	vector<double> ptsx;
           	vector<double> ptsy;
@@ -376,10 +356,6 @@ int main() {
 
           	    ptsy.push_back(ref_y_prev);
           	    ptsy.push_back(ref_y);
-          	    /*
-          	    printf("prev: %f; %f\n", ref_x_prev, ref_y_prev );
-          	    printf("cur: %f; %f\n", ref_x, ref_y );
-          	    */
 
           	}
 
@@ -387,11 +363,7 @@ int main() {
           	vector<double> wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y );
           	vector<double> wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y );
           	vector<double> wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y );
-          	/*
-          	printf("wp0: %f; %f\n", wp0[0], wp0[1]);
-          	printf("wp1: %f; %f\n", wp1[0], wp1[1]);
-          	printf("wp2: %f; %f\n", wp2[0], wp2[1]);
-          	*/
+
 
           	ptsx.push_back(wp0[0]);
           	ptsx.push_back(wp1[0]);
@@ -404,9 +376,7 @@ int main() {
           	for (int i=0; i < ptsx.size(); ++i ) {
           	    auto shift_x = ptsx[i] - ref_x;
           	    auto shift_y = ptsy[i] - ref_y;
-          	    /*
-          	    printf("shift x: %f; shift y: %f\n", shift_x, shift_y);
-                */
+
           	    ptsx[i] = shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw);
           	    ptsy[i] = shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw);
           	}
