@@ -44,9 +44,13 @@ Then we need to calculate cost for each available actions using cost function is
 
 #### 5. Produce new path   
 
-On the basis of the last two points of the previous two points at 30, 60 and 90 meters ahead, spline is created. This creates a smooth trajectory of x and y. To prevent excessive acceleration and jerk, the speed is allowed to increase or decrease only by a small amount, and the corresponding next points x and y are calculated from the splines x and y created earlier.
+Then we create a spline on the basis of the last two points and three points at 30, 60 and 90 meters ahead. This creates a smooth trajectory of x and y. To prevent excessive acceleration and jerk, the speed is allowed to increase or decrease only by a small amount, and the corresponding next points x and y are calculated from the splines x and y created earlier.
 
 ### Result
+
+Below are the results with 15 miles without incedent:
+
+![Alt text](images/result.png "Example with 15 miles without incedent")
 
 
 #### The map of the highway is in data/highway_map.txt
